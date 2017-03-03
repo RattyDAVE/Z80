@@ -1,0 +1,149 @@
+F800                          .ORG   $F800   ; 0xFFFF - 2048
+F800                START:    ;di              ; disable interrupts
+F800   21 FF FF               LD   hl,$FFFF   ; set new stack location
+F803   F9                     LD   sp,hl   ; to $FFFF
+F804   3E 03                  LD   a,$03   
+F806   D3 80                  OUT   ($80),a   ; ACIA master reset
+F808   3E 96                  LD   a,$96   ; Initialize ACIA
+F80A   D3 80                  OUT   ($80),a   
+F80C   FB                     EI   
+F80D                          ;di
+F80D   21 C8 F8     MAINF:    LD   hl,initstr   
+F810   CD 8C F8               CALL   print   
+F813   CD 87 F8     WAITCOL:   CALL   RX   ; wait for ':'
+F816   7D                     LD   a,l   
+F817   FE 3A                  CP   ':'   
+F819   C2 13 F8               JP   nz,waitcol   
+F81C   DD 21 00 00            LD   ix,0   ; reset ix to compute checksum
+F820   CD 96 F8               CALL   readbyte   ; read byte count
+F823   44                     LD   b,h   ; store it in bc
+F824   4D                     LD   c,l   ; 
+F825   CD 96 F8               CALL   readbyte   ; read upper byte of address
+F828   55                     LD   d,l   ; store in d
+F829   CD 96 F8               CALL   readbyte   ; read lower byte of address
+F82C   5D                     LD   e,l   ; store in e
+F82D   CD 96 F8               CALL   readbyte   ; read record type
+F830   7D                     LD   a,l   ; store in a
+F831   FE 01                  CP   01   ; check if record type is 01 (end of file)
+F833   28 24                  JR   z,endload   
+F835   FE 00                  CP   00   ; check if record type is 00 (data)
+F837   20 2D                  JR   nz,invtype   ; if not, error
+F839   CD 96 F8     READDATA:   CALL   readbyte   
+F83C   7D                     LD   a,l   
+F83D   12                     LD   (de),a   
+F83E   13                     INC   de   
+F83F   0B                     DEC   bc   
+F840   3E 00                  LD   a,0   ; check if bc==0
+F842   B0                     OR   b   
+F843   B1                     OR   c   
+F844   FE 00                  CP   0   
+F846   20 F1                  JR   nz,readdata   ; if not, loop
+F848                          ;ld a, '|'
+F848                          ;call TX
+F848   CD 96 F8               CALL   readbyte   ; read checksum
+F84B   DD 7D                  LD   a,ixl   ; lower byte of ix should be 0
+F84D   FE 00                  CP   0   
+F84F   20 1E                  JR   nz,badck   
+F851   3E 2A                  LD   a,'*'   
+F853   CD 7C F8               CALL   TX   
+F856   C3 13 F8               JP   waitcol   
+F859   CD 96 F8     ENDLOAD:   CALL   readbyte   ; read last checksum (not used)
+F85C   21 33 36               LD   hl,loadokstr   
+F85F   CD 8C F8               CALL   print   
+F862   21 80 80               LD   hl,$8080   
+F865   E9                     JP   (hl)   
+F866                          ;jp hang
+F866   21 33 36     INVTYPE:   LD   hl,invalidtypestr   
+F869   CD 8C F8               CALL   print   
+F86C   C3 78 F8               JP   hang   
+F86F   21 33 36     BADCK:    LD   hl,badchecksumstr   
+F872   CD 8C F8               CALL   print   
+F875   C3 78 F8               JP   hang   
+F878                HANG:     
+F878   00                     NOP   
+F879   C3 78 F8               JP   hang   
+F87C   F5           TX:       PUSH   af   
+F87D   DB 80        TXBUSY:   IN   a,($80)   ; read serial status
+F87F   CB 4F                  BIT   1,a   ; check status bit 1
+F881   28 FA                  JR   z,txbusy   ; loop if zero (serial is busy)
+F883   F1                     POP   af   
+F884   D3 81                  OUT   ($81),a   ; transmit the character
+F886   C9                     RET   
+F887                RX:       
+F887   F5                     PUSH   af   
+F888                WAITCH:   ;in a, ($80)
+F888                          ;bit 0, a
+F888                          ;jr z, waitch
+F888                          ;in a, ($81)
+F888                          ;ld h, 0
+F888   D7                     RST   $10   
+F889   6F                     LD   l,a   
+F88A                          ;call TX
+F88A   F1                     POP   af   
+F88B   C9                     RET   
+F88C                PRINT:    
+F88C   7E                     LD   a,(hl)   
+F88D   B7                     OR   a   
+F88E   C8                     RET   z   
+F88F   CD 7C F8               CALL   TX   
+F892   23                     INC   hl   
+F893   C3 8C F8               JP   print   
+F896                READBYTE:   
+F896   F5                     PUSH   af   
+F897   D5                     PUSH   de   
+F898   CD 87 F8               CALL   RX   
+F89B   7D                     LD   a,l   
+F89C   D6 30                  SUB   '0'   
+F89E   FE 0A                  CP   10   
+F8A0   38 02                  JR   c,rnib2   ; if a<10 read the second nibble
+F8A2   D6 07                  SUB   7   ; else subtract 'A'-'0' (17) and add 10
+F8A4   57           RNIB2:    LD   d,a   ; temporary store the first nibble in d
+F8A5   CD 87 F8               CALL   RX   
+F8A8   7D                     LD   a,l   
+F8A9   D6 30                  SUB   '0'   
+F8AB   FE 0A                  CP   10   
+F8AD   38 02                  JR   c,rend   ; if a<10 finalize
+F8AF   D6 07                  SUB   7   ; else subtract 'A' (17) and add 10
+F8B1   5F           REND:     LD   e,a   ; temporary store the second nibble in e
+F8B2   CB 22                  SLA   d   ; shift register d left by 4 bits
+F8B4   CB 22                  SLA   d   
+F8B6   CB 22                  SLA   d   
+F8B8   CB 22                  SLA   d   
+F8BA   B2                     OR   d   
+F8BB   D1                     POP   de   
+F8BC   26 00                  LD   h,0   
+F8BE   6F                     LD   l,a   
+F8BF   F1                     POP   af   
+F8C0   C5                     PUSH   bc   ; add the byte read to ix (for checksum)
+F8C1   06 00                  LD   b,0   
+F8C3   4D                     LD   c,l   
+F8C4   DD 09                  ADD   ix,bc   
+F8C6   C1                     POP   bc   
+F8C7   C9                     RET   
+F8C8                INITSTR:   DS   "HEX LOADER by Filippo Bergamasco",10,13,0   
+63688HEX LOADER BY FILIPPO BERGAMASCO   INVALIDTYPESTR:   DS   10,13,"INV TYP",0   
+63688HEX LOADER BY FILIPPO BERGAMASCO10   BADCHECKSUMSTR:   DS   10,13,"BAD CHK",0   
+63688HEX LOADER BY FILIPPO BERGAMASCO1010   LOADOKSTR:   DS   10,13,"OK",0   
+
+
+_PC         63688HEX LOADER BY FILIPPO BERGAMASCO1010
+START       F800
+MAINF       F80D
+WAITCOL     F813
+READDATA    F839
+ENDLOAD     F859
+INVTYPE     F866
+BADCK       F86F
+HANG        F878
+TX          F87C
+TXBUSY      F87D
+RX          F887
+WAITCH      F888
+PRINT       F88C
+READBYTE    F896
+RNIB2       F8A4
+REND        F8B1
+INITSTR     F8C8
+INVALIDTYPESTR63688HEX LOADER BY FILIPPO BERGAMASCO
+BADCHECKSUMSTR63688HEX LOADER BY FILIPPO BERGAMASCO10
+LOADOKSTR   63688HEX LOADER BY FILIPPO BERGAMASCO1010

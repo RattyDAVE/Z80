@@ -1,0 +1,6 @@
+            .ORG    08080h ;  (32896)
+START:              
+            LD      A,2 
+            AND     7 ; Get Ink Nibble.
+            ADD     a,48 ; Add 48 so converts to Ascii Char. Eg 1 = "1"
+            JP      START 

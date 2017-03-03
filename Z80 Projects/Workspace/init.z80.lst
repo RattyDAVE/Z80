@@ -1,0 +1,163 @@
+0000                SER_BUFSIZE:   EQU   3FH   
+0000                SER_FULLSIZE:   EQU   30H   
+0000                SER_EMPTYSIZE:   EQU   5   
+0000                RTS_HIGH:   EQU   0D6H   
+0000                RTS_LOW:   EQU   096H   
+0000                SERBUF:   EQU   $8000   
+0000                SERINPTR:   EQU   serBuf+SER_BUFSIZE   
+0000                SERRDPTR:   EQU   serInPtr+2   
+0000                SERBUFUSED:   EQU   serRdPtr+2   
+0000                TEMPSTACK:   EQU   $80ED   
+0000                          .ORG   $0000   
+0000                          ;------------------------------------------------------------------------------
+0000                          ; Reset
+0000   F3           RST00:    DI   
+0001   C3 B8 00               JP   INIT   ;Initialize Hardware and go
+0004                          ;------------------------------------------------------------------------------
+0004                          ; TX a character over RS232
+0008                          .ORG   0008H   
+0008   C3 9F 00     RST08:    JP   TXA   
+000B                          ;------------------------------------------------------------------------------
+000B                          ; RX a character over RS232 Channel A [Console], hold here until char ready.
+0010                          .ORG   0010H   
+0010   C3 74 00     RST10:    JP   RXA   
+0013                          ;------------------------------------------------------------------------------
+0013                          ; Check serial status
+0018                          .ORG   0018H   
+0018   C3 AA 00     RST18:    JP   CKINCHAR   
+001B                          ;------------------------------------------------------------------------------
+001B                          ; RST 38 - INTERRUPT VECTOR [ for IM 1 ]
+0038                          .ORG   0038H   
+0038   18 00        RST38:    JR   serialInt   
+003A                          ;------------------------------------------------------------------------------
+003A   F5           SERIALINT:   PUSH   AF   
+003B   E5                     PUSH   HL   
+003C   DB 80                  IN   A,($80)   
+003E   E6 01                  AND   $01   ; Check if interupt due to read buffer full
+0040   28 2D                  JR   Z,rts0   ; if not, ignore
+0042   DB 81                  IN   A,($81)   
+0044   F5                     PUSH   AF   
+0045   3A 43 80               LD   A,(serBufUsed)   
+0048   FE 3F                  CP   SER_BUFSIZE   ; If full then ignore
+004A   20 03                  JR   NZ,notFull   
+004C   F1                     POP   AF   
+004D   18 20                  JR   rts0   
+004F   2A 3F 80     NOTFULL:   LD   HL,(serInPtr)   
+0052   23                     INC   HL   
+0053   7D                     LD   A,L   ; Only need to check low byte becasuse buffer<256 bytes
+0054   FE 3F                  CP   (serBuf+SER_BUFSIZE) & $FF   
+0056   20 03                  JR   NZ,notWrap   
+0058   21 00 80               LD   HL,serBuf   
+005B   22 3F 80     NOTWRAP:   LD   (serInPtr),HL   
+005E   F1                     POP   AF   
+005F   77                     LD   (HL),A   
+0060   3A 43 80               LD   A,(serBufUsed)   
+0063   3C                     INC   A   
+0064   32 43 80               LD   (serBufUsed),A   
+0067   FE 30                  CP   SER_FULLSIZE   
+0069   38 04                  JR   C,rts0   
+006B   3E D6                  LD   A,RTS_HIGH   
+006D   D3 80                  OUT   ($80),A   
+006F   E1           RTS0:     POP   HL   
+0070   F1                     POP   AF   
+0071   FB                     EI   
+0072   ED 4D                  RETI   
+0074                          ;------------------------------------------------------------------------------
+0074                RXA:      
+0074                WAITFORCHAR:   
+0074   3A 43 80               LD   A,(serBufUsed)   
+0077   FE 00                  CP   $00   
+0079   28 F9                  JR   Z,waitForChar   
+007B   E5                     PUSH   HL   
+007C   2A 41 80               LD   HL,(serRdPtr)   
+007F   23                     INC   HL   
+0080   7D                     LD   A,L   ; Only need to check low byte becasuse buffer<256 bytes
+0081   FE 3F                  CP   (serBuf+SER_BUFSIZE) & $FF   
+0083   20 03                  JR   NZ,notRdWrap   
+0085   21 00 80               LD   HL,serBuf   
+0088                NOTRDWRAP:   
+0088   F3                     DI   
+0089   22 41 80               LD   (serRdPtr),HL   
+008C   3A 43 80               LD   A,(serBufUsed)   
+008F   3D                     DEC   A   
+0090   32 43 80               LD   (serBufUsed),A   
+0093   FE 05                  CP   SER_EMPTYSIZE   
+0095   30 04                  JR   NC,rts1   
+0097   3E 96                  LD   A,RTS_LOW   
+0099   D3 80                  OUT   ($80),A   
+009B                RTS1:     
+009B   7E                     LD   A,(HL)   
+009C   FB                     EI   
+009D   E1                     POP   HL   
+009E   C9                     RET   ; Char ready in A
+009F                          ;------------------------------------------------------------------------------
+009F                TXA:      
+009F   F5                     PUSH   AF   ; Store character
+00A0                CONOUT1:   
+00A0   DB 80                  IN   A,($80)   ; Status byte
+00A2   CB 4F                  BIT   1,A   ; Set Zero flag if still transmitting character
+00A4   28 FA                  JR   Z,conout1   ; Loop until flag signals ready
+00A6   F1                     POP   AF   ; Retrieve character
+00A7   D3 81                  OUT   ($81),A   ; Output the character
+00A9   C9                     RET   
+00AA                          ;------------------------------------------------------------------------------
+00AA                CKINCHAR:   
+00AA   3A 43 80               LD   A,(serBufUsed)   
+00AD   FE 00                  CP   $0   
+00AF   C9                     RET   
+00B0                PRINT:    
+00B0   7E                     LD   A,(HL)   ; Get character
+00B1   B7                     OR   A   ; Is it $00 ?
+00B2   C8                     RET   Z   ; Then RETurn on terminator
+00B3   CF                     RST   08H   ; Print it
+00B4   23                     INC   HL   ; Next Character
+00B5   18 F9                  JR   PRINT   ; Continue until $00
+00B7   C9                     RET   
+00B8                          ;------------------------------------------------------------------------------
+00B8                INIT:     
+00B8   21 ED 80               LD   HL,TEMPSTACK   ; Temp stack
+00BB   F9                     LD   SP,HL   ; Set up a temporary stack
+00BC   21 00 80               LD   HL,serBuf   
+00BF   22 3F 80               LD   (serInPtr),HL   
+00C2   22 41 80               LD   (serRdPtr),HL   
+00C5   AF                     XOR   A   ;0 to accumulator
+00C6   32 43 80               LD   (serBufUsed),A   
+00C9   3E 96                  LD   A,RTS_LOW   
+00CB   D3 80                  OUT   ($80),A   ; Initialise ACIA
+00CD   ED 56                  IM   1   
+00CF   FB                     EI   
+00D0                          ;JP      INIT2 ; Start user program.
+00D0                          ;-------------------------------------------------------------------------------
+00D0                          ;-------------------------------------------------------------------------------
+00D0                          ;-------------------------------------------------------------------------------
+
+
+_PC         00D0
+SER_BUFSIZE 003F
+SER_FULLSIZE0030
+SER_EMPTYSIZE0005
+RTS_HIGH    00D6
+RTS_LOW     0096
+SERBUF      8000
+SERINPTR    803F
+SERRDPTR    8041
+SERBUFUSED  8043
+TEMPSTACK   80ED
+RST00       0000
+RST08       0008
+RST10       0010
+RST18       0018
+RST38       0038
+SERIALINT   003A
+NOTFULL     004F
+NOTWRAP     005B
+RTS0        006F
+RXA         0074
+WAITFORCHAR 0074
+NOTRDWRAP   0088
+RTS1        009B
+TXA         009F
+CONOUT1     00A0
+CKINCHAR    00AA
+PRINT       00B0
+INIT        00B8

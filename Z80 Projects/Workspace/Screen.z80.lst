@@ -1,0 +1,222 @@
+0000                LINES:    EQU   25   
+0000                COLS:     EQU   64   
+8080                          .ORG   08080h   ;  (32896)
+8080                START:    ; Main Program start
+8080                          ;CALL    COPY_STRING_SCREEN ;Put the string to the screen buffer
+8080                          ;CALL    PRINT_LINE1 ;Output line 1
+8080   CD FF 80               CALL   FILL_SCR_BUFF   ; Fill screen buffer
+8083   CD A0 80               CALL   PRNT_SCR   ; Print Screen buffer
+8086                END:      
+8086   C9                     RET   ; Go back to BASIC
+8087                COPY_STRING_SCREEN:   ;--------- Copy String to Start of screen buffer ----------
+8087   F5                     PUSH   af   ;Save AF to stack
+8088   D5                     PUSH   de   ;Save DE to Stack
+8089   E5                     PUSH   hl   ;Save HL to Stack
+808A   21 0F 81               LD   hl,STRING1   ; Load the address of the string into HL
+808D   11 B3 81               LD   de,SCREEN   ; Load the address off the screen
+8090                COPY_STRING_SCREEN_1:   
+8090   7E                     LD   a,(hl)   ; Contents of HL into A
+8091   FE 00                  CP   00   
+8093   CA 9C 80               JP   Z,COPY_STRING_SCREEN_END   ;   Return if zero.
+8096   12                     LD   (de),A   ; Put 'A' into the address BC
+8097   23                     INC   hl   ; Add 1 to HL
+8098   13                     INC   de   ; Add 1 to DE
+8099   C3 90 80               JP   COPY_STRING_SCREEN_1   
+809C                COPY_STRING_SCREEN_END:   
+809C   E1                     POP   hl   ; Restore HL
+809D   D1                     POP   de   ; Restore DE
+809E   F1                     POP   af   ; Restore AF
+809F   C9                     RET   ;----------------------------------------------------------
+80A0                PRNT_SCR:   ; PRINTS SCREEN
+80A0                          ;PUSH    HL ; Need HL for the Screen pointer
+80A0                          ;PUSH    DE ; Need DE for the Screen Size
+80A0                          ;PUSH    BC ; Need B for Col Count
+80A0                          ;PUSH    AF ; Need A for to sent to the RST 08
+80A0   21 25 81               LD   HL,ANSI_CLS   ;Clear screen string in HL
+80A3   CD C2 80               CALL   PRINT_STR   ; Print the Clear screen
+80A6   21 B3 81               LD   HL,SCREEN   
+80A9   ED 5B B1 81            LD   DE,(SCREENSIZE)   
+80AD                PRNT_LINE:   
+80AD   06 40                  LD   b,COLS   
+80AF                PRNT_COL:   
+80AF   7E                     LD   a,(HL)   
+80B0   CF                     RST   08   
+80B1   1B                     DEC   DE   
+80B2   CA C1 80               JP   z,PRNT_SCR_DONE   
+80B5   23                     INC   HL   
+80B6   10 F7                  DJNZ   PRNT_COL   ; dec b, if not zero jump!
+80B8   3E 0F                  LD   A,15   ; Put CR in A
+80BA   CF                     RST   08   ; Print the CR
+80BB   3E 0C                  LD   A,12   ; Put LF in A
+80BD   CF                     RST   08   ; Print the LF
+80BE   C3 AD 80               JP   PRNT_LINE   ; Start next line.
+80C1                PRNT_SCR_DONE:   
+80C1                          ;POP     AF ; Put back AF
+80C1                          ;POP     BC ; Put back BC
+80C1                          ;POP     DE ; Put back DE
+80C1                          ;POP     HL ; Put back HL
+80C1   C9                     RET   ;--------------------------------------------------
+80C2                PRINT_STR:   ;--------- Print (HL) to screen TEST ----------------
+80C2   F5                     PUSH   af   ;Save AF to stack
+80C3   E5                     PUSH   HL   ;Save BC to Stack
+80C4                PRINT_STR_1:   
+80C4   7E                     LD   a,(hl)   ; Put the contents of HL in A
+80C5   FE 00                  CP   00   
+80C7   CA CF 80               JP   Z,PRINT_STR_END   ; End on 0
+80CA   CF                     RST   08   ; Call the Output routine
+80CB                          ;RST     16 ; Call the Output routine Spectrum
+80CB   23                     INC   HL   ; Add one to HL- Next Char
+80CC   C3 C4 80               JP   PRINT_STR_1   ; Loop and print more
+80CF                PRINT_STR_END:   
+80CF   E1                     POP   HL   ; Restore BC
+80D0   F1                     POP   af   ; Restore AF
+80D1   C9                     RET   ;---------------------------------------------------------
+80D2                          ;Number in a to decimal ASCII
+80D2                          ;adapted from 16 bit found in z80 Bits to 8 bit by Galandros
+80D2                          ;Example: display a=56 as "056"
+80D2                          ;input: a = number
+80D2                          ;Output: a=0,value of a in the screen
+80D2                          ;destroys af,bc
+80D2                PNT_NUM:   
+80D2   0E 9C                  LD   c,-100   
+80D4   CD DE 80               CALL   PNT_NUM1   
+80D7   0E F6                  LD   c,-10   
+80D9   CD DE 80               CALL   PNT_NUM1   
+80DC   0E FF                  LD   c,-1   
+80DE                PNT_NUM1:   
+80DE   06 2F                  LD   b,'0'-1   
+80E0                PNT_NUM2:   
+80E0   04                     INC   b   
+80E1   81                     ADD   a,c   
+80E2   38 FC                  JR   c,PNT_NUM2   
+80E4   91                     SUB   c   ;works as add 100/10/1
+80E5   F5                     PUSH   af   ;safer than ld c,a
+80E6   78                     LD   a,b   ;char is in b
+80E7   CF                     RST   08   ;plot a char
+80E8   F1                     POP   af   ;safer than ld a,c
+80E9   C9                     RET   
+80EA                          ;-------------------------------------------------------------------
+80EA                          ;******************************************************************************
+80EA                SET_POS:   ;------- B=LINE (1 to LINE), C = COLS (1 to COLS)
+80EA                          ;HL retuns the START ADDRESS
+80EA   C5                     PUSH   BC   ; Save BC
+80EB   D5                     PUSH   DE   ; Save DE
+80EC                          ;------ Sets HL to the Start of the line you want ----------------
+80EC   2A B3 81               LD   HL,(SCREEN)   
+80EF   05                     DEC   B   ; Take 1 away from a
+80F0   CA FA 80               JP   Z,COL_START   ; HL contains the correct start point for the line!
+80F3   16 00                  LD   D,0   ; Zero D
+80F5                LN_START_1:   
+80F5   1E 40                  LD   E,COLS   ; Put COLS into A
+80F7   19                     ADD   HL,DE   ; Add the offser for next line.
+80F8   10 FB                  DJNZ   LN_START_1   ; dec b, if not zero jump!
+80FA                COL_START:   ;------- Sets HL to the col pos (called after LINE) --------------
+80FA   0D                     DEC   c   ; take 1 away from C
+80FB   09                     ADD   HL,BC   ; B is already 0 so just add C
+80FC   D1                     POP   DE   
+80FD   C1                     POP   BC   ; Put BC back to as it was.
+80FE   C9                     RET   ; -------------------------------------------------------------
+80FF                          ;*****************************************************************************
+80FF                          ;*****************************************************************************
+80FF                FILL_SCR_BUFF:   ;Clears/Fills the screen buffer.
+80FF                          ;PUSH    hl ; Save the registers HL
+80FF                          ;PUSH    de ; Save the registers DE
+80FF                          ;PUSH    bc ; Save the registers BC
+80FF   21 B3 81               LD   hl,SCREEN   ; Pointer to the source
+8102   11 B4 81               LD   de,SCREEN+1   ; Pointer to the destination
+8105   ED 4B B1 81            LD   bc,(SCREENSIZE)   ; Number of bytes to move
+8109   0B                     DEC   BC   ; All ready done one.
+810A   36 78                  LD   (hl),"x"   ; The value to fill
+810C   ED B0                  LDIR   ; Moves BC bytes from (HL) to (DE)
+810E                          ;POP     bc ; Restore the registers BC
+810E                          ;POP     de ; Restore the registers BC
+810E                          ;POP     hl ; Restore the registers BC
+810E   C9                     RET   ;*****************************************************************************
+810F   4C 65 74 73 20 73 74 61 72 74 20 74 68 69 73 20 74 68 69 6E 67 00 STRING1:   DB   "Lets start this thing",00   
+8125   1B 00        ANSI_CLS:   DB   27,"[2J",27,"[;H",00   ;Clears screen and put cursor at 0,0
+8127   1B 5B 30 6D 00 ANSI_RESET:   DB   27,"[0m",00   ;Reset all attributes
+812C   1B 5B 31 6D 00 ANSI_BOLD:   DB   27,"[1m",00   ;Set bright attribute
+8131   1B 5B 32 6D 00 ANSI_DIM:   DB   27,"[2m",00   ;Set dim attribute
+8136   1B 5B 33 6D 00 ANSI_SO:   DB   27,"[3m",00   ;Set standout attribute
+813B   1B 5B 34 6D 00 ANSI_UL:   DB   27,"[4m",00   ;Set underscore (underlined text) attribute
+8140   1B 5B 35 6D 00 ANSI_BLINK:   DB   27,"[5m",00   ;Set blink attribute
+8145   1B 5B 37 6D 00 ANSI_REV:   DB   27,"[7m",00   ;Set reverse attribute
+814A   1B 5B 38 6D 00 ANSI_HID:   DB   27,"[8m",00   ;Set hidden attribute
+814F   1B 5B 33 30 6D 00 ANSI_FG_BK:   DB   27,"[30m",00   ; ESC[30m - FG Black
+8155   1B 5B 33 31 6D 00 ANSI_FG_RD:   DB   27,"[31m",00   ; ESC[31m - FG Red
+815B   1B 5B 33 32 6D 00 ANSI_FG_GN:   DB   27,"[32m",00   ; ESC[32m - FG Green
+8161   1B 5B 33 33 6D 00 ANSI_FG_YL:   DB   27,"[33m",00   ; ESC[33m - FG Yellow
+8167   1B 5B 33 34 6D 00 ANSI_FG_BL:   DB   27,"[34m",00   ; ESC[34m - FG Blue
+816D   1B 5B 33 35 6D 00 ANSI_FG_MG:   DB   27,"[35m",00   ; ESC[35m - FG Magenta
+8173   1B 5B 33 36 6D 00 ANSI_FG_CY:   DB   27,"[36m",00   ; ESC[36m - FG Cyan
+8179   1B 5B 33 37 6D 00 ANSI_FG_WH:   DB   27,"[37m",00   ; ESC[37m - FG White
+817F   1B 5B 34 30 6D 00 ANSI_BG_BK:   DB   27,"[40m",00   ; ESC[40m - BG Black
+8185   1B 5B 34 31 6D 00 ANSI_BG_RD:   DB   27,"[41m",00   ; ESC[41m - BG Red
+818B   1B 5B 34 32 6D 00 ANSI_BG_GN:   DB   27,"[42m",00   ; ESC[42m - BG Green
+8191   1B 5B 34 33 6D 00 ANSI_BG_YL:   DB   27,"[43m",00   ; ESC[43m - BG Yellow
+8197   1B 5B 34 34 6D 00 ANSI_BG_BL:   DB   27,"[44m",00   ; ESC[44m - BG Blue
+819D   1B 5B 34 35 6D 00 ANSI_BG_MG:   DB   27,"[45m",00   ; ESC[45m - BG Magenta
+81A3   1B 5B 34 36 6D 00 ANSI_BG_CY:   DB   27,"[46m",00   ; ESC[46m - BG Cyan
+81A9   1B 5B 34 37 6D 00 ANSI_BG_WH:   DB   27,"[47m",00   ; ESC[47m - BG White
+81AF   19           SCR_LINES:   DB   LINES   
+81B0   40           SCR_COLS:   DB   COLS   
+81B1   20 14        SCREENSIZE:   DB   020h,014h   ; 01420h = 5120d =  80 Cols x 64 Rows ; may not be needed
+81B3                SCREEN:   DS   5120   ; 
+95B3                SCREEN_END:   
+95B3   FF           END_MARKER:   DB   0FFH   ; NOT USED CAN BE REMOVED JUST FOR LOOKING AT CODE
+
+
+_PC         95B3
+LINES       0019
+COLS        0040
+START       8080
+END         8086
+COPY_STRING_SCREEN8087
+COPY_STRING_SCREEN_18090
+COPY_STRING_SCREEN_END809C
+PRNT_SCR    80A0
+PRNT_LINE   80AD
+PRNT_COL    80AF
+PRNT_SCR_DONE80C1
+PRINT_STR   80C2
+PRINT_STR_1 80C4
+PRINT_STR_END80CF
+PNT_NUM     80D2
+PNT_NUM1    80DE
+PNT_NUM2    80E0
+SET_POS     80EA
+LN_START_1  80F5
+COL_START   80FA
+FILL_SCR_BUFF80FF
+STRING1     810F
+ANSI_CLS    8125
+ANSI_RESET  8127
+ANSI_BOLD   812C
+ANSI_DIM    8131
+ANSI_SO     8136
+ANSI_UL     813B
+ANSI_BLINK  8140
+ANSI_REV    8145
+ANSI_HID    814A
+ANSI_FG_BK  814F
+ANSI_FG_RD  8155
+ANSI_FG_GN  815B
+ANSI_FG_YL  8161
+ANSI_FG_BL  8167
+ANSI_FG_MG  816D
+ANSI_FG_CY  8173
+ANSI_FG_WH  8179
+ANSI_BG_BK  817F
+ANSI_BG_RD  8185
+ANSI_BG_GN  818B
+ANSI_BG_YL  8191
+ANSI_BG_BL  8197
+ANSI_BG_MG  819D
+ANSI_BG_CY  81A3
+ANSI_BG_WH  81A9
+SCR_LINES   81AF
+SCR_COLS    81B0
+SCREENSIZE  81B1
+SCREEN      81B3
+SCREEN_END  95B3
+END_MARKER  95B3

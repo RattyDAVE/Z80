@@ -1,0 +1,10 @@
+8080                          .ORG   08080h   ;  (32896)
+8080                START:    
+8080   3E 02                  LD   A,2   
+8082   E6 07                  AND   7   ; Get Ink Nibble.
+8084   C6 30                  ADD   a,48   ; Add 48 so converts to Ascii Char. Eg 1 = "1"
+8086   C3 80 80               JP   START   
+
+
+_PC         8086
+START       8080

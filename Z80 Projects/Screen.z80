@@ -1,0 +1,139 @@
+LINES       EQU     25 
+COLS        EQU     64 
+            .ORG    08080h ;  (32896)
+
+START:              ; Main Program start
+                    ;CALL    COPY_STRING_SCREEN ;Put the string to the screen buffer
+                    ;CALL    PRINT_LINE1 ;Output line 1
+
+
+            CALL    FILL_SCR_BUFF ; Fill screen buffer 
+            CALL    PRNT_SCR      ; Print Screen buffer
+END:                
+            RET     ; Go back to BASIC
+
+
+
+COPY_STRING_SCREEN: ;--------- Copy String to Start of screen buffer ----------
+            PUSH    af ;Save AF to stack
+            PUSH    de ;Save DE to Stack
+            PUSH    hl ;Save HL to Stack
+            LD      hl,STRING1 ; Load the address of the string into HL
+            LD      de,SCREEN ; Load the address off the screen
+COPY_STRING_SCREEN_1: 
+            LD      a,(hl) ; Contents of HL into A
+            CP      00 
+            JP      Z,COPY_STRING_SCREEN_END ;   Return if zero.
+            LD      (de),A ; Put 'A' into the address BC
+            INC     hl ; Add 1 to HL
+            INC     de ; Add 1 to DE
+            JP      COPY_STRING_SCREEN_1 
+COPY_STRING_SCREEN_END: 
+            POP     hl ; Restore HL
+            POP     de ; Restore DE
+            POP     af ; Restore AF
+            RET     ;----------------------------------------------------------
+
+PRNT_SCR:           ; PRINTS SCREEN
+            ;PUSH    HL ; Need HL for the Screen pointer
+            ;PUSH    DE ; Need DE for the Screen Size
+            ;PUSH    BC ; Need B for Col Count
+            ;PUSH    AF ; Need A for to sent to the RST 08
+            LD HL,ANSI_CLS ;Clear screen string in HL
+            CALL PRINT_STR ; Print the Clear screen                     
+            LD      HL,SCREEN
+            LD      DE,(SCREENSIZE)
+PRNT_LINE:          
+            LD      b,COLS 
+PRNT_COL:           
+            LD      a,(HL) 
+            RST     08 
+            DEC     DE 
+            JP      z,PRNT_SCR_DONE 
+            INC     HL 
+            DJNZ    PRNT_COL ; dec b, if not zero jump!
+            LD      A,15 ; Put CR in A
+            RST     08 ; Print the CR
+            LD      A,12 ; Put LF in A
+            RST     08 ; Print the LF
+            JP      PRNT_LINE ; Start next line.
+PRNT_SCR_DONE:      
+            ;POP     AF ; Put back AF
+            ;POP     BC ; Put back BC
+            ;POP     DE ; Put back DE
+            ;POP     HL ; Put back HL
+            RET     ;--------------------------------------------------
+
+
+
+
+PRINT_STR:          ;--------- Print (HL) to screen TEST ----------------
+            PUSH    af ;Save AF to stack
+            PUSH    HL ;Save BC to Stack
+PRINT_STR_1:        
+            LD      a,(hl) ; Put the contents of HL in A
+            CP      00 
+            JP      Z,PRINT_STR_END ; End on 0
+            RST     08 ; Call the Output routine
+                    ;RST     16 ; Call the Output routine Spectrum
+            INC     HL ; Add one to HL- Next Char
+            JP      PRINT_STR_1 ; Loop and print more
+PRINT_STR_END:      
+            POP     HL ; Restore BC
+            POP     af ; Restore AF
+            RET     ;---------------------------------------------------------
+
+
+
+                    ;******************************************************************************
+SET_POS:            ;------- B=LINE (1 to LINE), C = COLS (1 to COLS)
+                    ;HL retuns the START ADDRESS
+            PUSH    BC ; Save BC
+            PUSH    DE ; Save DE
+
+                    ;------ Sets HL to the Start of the line you want ----------------
+            LD      HL,(SCREEN) 
+            DEC     B ; Take 1 away from a
+            JP      Z,COL_START ; HL contains the correct start point for the line!
+            LD      D,0 ; Zero D
+LN_START_1:         
+            LD      E,COLS ; Put COLS into A
+            ADD     HL,DE ; Add the offser for next line.
+            DJNZ    LN_START_1 ; dec b, if not zero jump!
+
+COL_START:          ;------- Sets HL to the col pos (called after LINE) --------------
+            DEC     c ; take 1 away from C
+            ADD     HL,BC ; B is already 0 so just add C
+            POP     DE 
+            POP     BC ; Put BC back to as it was.
+            RET     ; -------------------------------------------------------------
+                    ;*****************************************************************************
+Please can t
+
+                    ;*****************************************************************************
+FILL_SCR_BUFF:      ;Clears/Fills the screen buffer.
+            ;PUSH    hl ; Save the registers HL
+            ;PUSH    de ; Save the registers DE
+            ;PUSH    bc ; Save the registers BC
+            LD      hl,SCREEN ; Pointer to the source
+            LD      de,SCREEN+1 ; Pointer to the destination
+            LD      bc,(SCREENSIZE) ; Number of bytes to move
+            DEC     BC ; All ready done one.
+            LD      (hl),"x" ; The value to fill
+            LDIR    ; Moves BC bytes from (HL) to (DE)
+            ;POP     bc ; Restore the registers BC
+            ;POP     de ; Restore the registers BC
+            ;POP     hl ; Restore the registers BC
+            RET     ;*****************************************************************************
+
+STRING1:    DB      "Lets start this thing",00 
+
+.include ansi_codes.inc.z80
+
+SCR_LINES:  DB      LINES 
+SCR_COLS:   DB      COLS 
+SCREENSIZE: DB      020h,014h ; 01420h = 5120d =  80 Cols x 64 Rows ; may not be needed
+SCREEN:     DS      5120 ; 
+SCREEN_END:         
+
+END_MARKER: DB      0FFH ; NOT USED CAN BE REMOVED JUST FOR LOOKING AT CODE

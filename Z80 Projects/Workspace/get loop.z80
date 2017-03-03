@@ -1,0 +1,8 @@
+            .ORG    08080h ;  (32896)
+            
+            
+START:
+            RST 10
+            RST 08
+            jp START
+            

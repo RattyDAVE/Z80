@@ -1,0 +1,25 @@
+ANSI_CLS:   DB      27,"[2J",27,"[;H",00 ;Clears screen and put cursor at 0,0
+ANSI_RESET: DB      27,"[0m",00 ;Reset all attributes
+ANSI_BOLD:  DB      27,"[1m",00 ;Set bright attribute
+ANSI_DIM:   DB      27,"[2m",00 ;Set dim attribute
+ANSI_SO:    DB      27,"[3m",00 ;Set standout attribute
+ANSI_UL:    DB      27,"[4m",00 ;Set underscore (underlined text) attribute
+ANSI_BLINK: DB      27,"[5m",00 ;Set blink attribute
+ANSI_REV:   DB      27,"[7m",00 ;Set reverse attribute
+ANSI_HID:   DB      27,"[8m",00 ;Set hidden attribute
+ANSI_FG_BK: DB      27,"[30m",00 ; ESC[30m - FG Black
+ANSI_FG_RD: DB      27,"[31m",00 ; ESC[31m - FG Red
+ANSI_FG_GN: DB      27,"[32m",00 ; ESC[32m - FG Green
+ANSI_FG_YL: DB      27,"[33m",00 ; ESC[33m - FG Yellow
+ANSI_FG_BL: DB      27,"[34m",00 ; ESC[34m - FG Blue
+ANSI_FG_MG: DB      27,"[35m",00 ; ESC[35m - FG Magenta
+ANSI_FG_CY: DB      27,"[36m",00 ; ESC[36m - FG Cyan
+ANSI_FG_WH: DB      27,"[37m",00 ; ESC[37m - FG White
+ANSI_BG_BK: DB      27,"[40m",00 ; ESC[40m - BG Black
+ANSI_BG_RD: DB      27,"[41m",00 ; ESC[41m - BG Red
+ANSI_BG_GN: DB      27,"[42m",00 ; ESC[42m - BG Green
+ANSI_BG_YL: DB      27,"[43m",00 ; ESC[43m - BG Yellow
+ANSI_BG_BL: DB      27,"[44m",00 ; ESC[44m - BG Blue
+ANSI_BG_MG: DB      27,"[45m",00 ; ESC[45m - BG Magenta
+ANSI_BG_CY: DB      27,"[46m",00 ; ESC[46m - BG Cyan
+ANSI_BG_WH: DB      27,"[47m",00 ; ESC[47m - BG White

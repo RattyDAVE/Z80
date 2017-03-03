@@ -1,0 +1,1 @@
+pasmo --tzxbas $@.asm $@.tzx
